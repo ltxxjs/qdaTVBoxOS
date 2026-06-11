@@ -91,13 +91,13 @@ jobs:
         run: |
           tar -cJf sourceCode-${{ env.commitS }}.tar.xz --exclude=.git --exclude=.github *
 
-      # 【核心修复】直接生成签名逻辑文本，不再使用 base64 规避转码错误
+      # 【路径修复】显式将 app_signing.gradle 生成在 app/ 目录下
       - name: Release Apk Sign
         if: ${{ env.commit }}
         working-directory: TVBoxOSC
         run: |
-          # 1. 动态将不依赖外部文件的 gradle 签名块追加写入 app/build.gradle
-          cat << 'EOF' > app_signing.gradle
+          # 1. 动态将签名块写入正确的 app/ 文件夹下
+          cat << 'EOF' > app/app_signing.gradle
           signingConfigs {
               if (project.hasProperty("RELEASE_STORE_FILE")) {
                   myConfig {
@@ -114,9 +114,8 @@ jobs:
           }
           EOF
           
-          # 将签名定义塞到 android 块内部
+          # 2. 引入外部脚本路径调整为当前目录下的 app_signing.gradle
           sed -i -e "/defaultConfig {/i\apply from: 'app_signing.gradle'" app/build.gradle
-          # 将应用签名规则分别塞进 debug 和 release
           sed -i -e "/debug {/a\if (project.hasProperty('RELEASE_STORE_FILE')) { signingConfig signingConfigs.myConfig }" app/build.gradle
           sed -i -e "/release {/a\if (project.hasProperty('RELEASE_STORE_FILE')) { signingConfig signingConfigs.myConfig }" app/build.gradle
           
