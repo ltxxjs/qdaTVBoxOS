@@ -79,16 +79,13 @@ jobs:
             sed -i "/jitpack.io/a\        maven { url 'https://o0halflife0o.github.io/crosswalk/releases/crosswalk/android/maven2' }" build.gradle
           fi
 
-          echo '【魔改】全方位注入自定义默认节目源'
-          # 1. 替换传统 strings.xml 中的各种可能配置名（app_init_config, default_config 等）
-          find . -name "*strings.xml" | xargs sed -i 's#<string name="app_init_config">.*</string>#<string name="app_init_config">https://tvbox.sjk.kdns.fr/</string>#g'
-          find . -name "*strings.xml" | xargs sed -i 's#<string name="default_config">.*</string>#<string name="default_config">https://tvbox.sjk.kdns.fr/</string>#g'
-
-          # 2. 强力攻坚：直接在 Java/Kotlin 源代码中搜索常见的默认空源或测试源赋值，将其强行替换
-          # 很多 TVBox 分支会在代码里写 private String ... = "" 或 "clan://localhost/..."
-          # 我们全局搜索可能存在初始化地址的源码文件并用 sed 覆盖
-          find app/src/main/ -type f \( -name "*.java" -o -name "*.kt" \) | xargs sed -i 's#\"clan://localhost/tvbox/txt/index.txt\"#\"https://tvbox.sjk.kdns.fr/\"#g' 2>/dev/null || true
-          find app/src/main/ -type f \( -name "*.java" -o -name "*.kt" \) | xargs sed -i 's#\"https://github.com/[^\"]*/raw/[^\"]*\"#\"https://tvbox.sjk.kdns.fr/\"#g' 2>/dev/null || true
+          echo '【魔改】精准替换 HomeActivity 中的默认空源'
+          TARGET_FILE=$(find app/src/main/ -name "HomeActivity.java" | head -n 1)
+          if [ -n "$TARGET_FILE" ]; then
+            echo "找到目标文件: $TARGET_FILE"
+            # 匹配在 OkHttp 请求上下文中紧跟在 Accept 长请求头后面的那个空字符串 ""，并替换为你的源
+            sed -i 's#\"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,\*/\*;q=0.8,application/signed-exchange;v=b3;q=0.7\", \"\"#\"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,\*/\*;q=0.8,application/signed-exchange;v=b3;q=0.7\", \"https://tvbox.sjk.kdns.fr/\"#g' $TARGET_FILE
+          fi
 
           echo '【魔改】修改桌面图标显示名称为：白龙苑影视'
           find . -name "*strings.xml" | xargs sed -i 's#<string name="app_name">.*</string>#<string name="app_name">白龙苑影视</string>#g'
