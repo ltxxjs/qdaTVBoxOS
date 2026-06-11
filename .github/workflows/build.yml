@@ -2,7 +2,7 @@ name: Build APK
 
 on:
   push:
-    branches: [ main ] # 当你向 main 分支推送代码时触发
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
@@ -11,11 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # 1. 检出代码
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. 设置 Java 环境 (Android 构建通常需要 JDK 17)
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -23,15 +21,16 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # 3. 赋予 Gradle 执行权限 (防止权限错误)
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # 4. 执行编译
+      # 【新增】创建空的 local.properties 文件以跳过检查
+      - name: Create local.properties
+        run: touch local.properties
+
       - name: Build with Gradle
         run: ./gradlew assembleDebug
 
-      # 5. 上传生成的 APK (使用 v4 版本，必须放在 workflow 步骤中)
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
