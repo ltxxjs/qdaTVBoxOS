@@ -79,8 +79,16 @@ jobs:
             sed -i "/jitpack.io/a\        maven { url 'https://o0halflife0o.github.io/crosswalk/releases/crosswalk/android/maven2' }" build.gradle
           fi
 
-          echo '【魔改】注入自定义默认节目源'
+          echo '【魔改】全方位注入自定义默认节目源'
+          # 1. 替换传统 strings.xml 中的各种可能配置名（app_init_config, default_config 等）
           find . -name "*strings.xml" | xargs sed -i 's#<string name="app_init_config">.*</string>#<string name="app_init_config">https://tvbox.sjk.kdns.fr/</string>#g'
+          find . -name "*strings.xml" | xargs sed -i 's#<string name="default_config">.*</string>#<string name="default_config">https://tvbox.sjk.kdns.fr/</string>#g'
+
+          # 2. 强力攻坚：直接在 Java/Kotlin 源代码中搜索常见的默认空源或测试源赋值，将其强行替换
+          # 很多 TVBox 分支会在代码里写 private String ... = "" 或 "clan://localhost/..."
+          # 我们全局搜索可能存在初始化地址的源码文件并用 sed 覆盖
+          find app/src/main/ -type f \( -name "*.java" -o -name "*.kt" \) | xargs sed -i 's#\"clan://localhost/tvbox/txt/index.txt\"#\"https://tvbox.sjk.kdns.fr/\"#g' 2>/dev/null || true
+          find app/src/main/ -type f \( -name "*.java" -o -name "*.kt" \) | xargs sed -i 's#\"https://github.com/[^\"]*/raw/[^\"]*\"#\"https://tvbox.sjk.kdns.fr/\"#g' 2>/dev/null || true
 
           echo '【魔改】修改桌面图标显示名称为：白龙苑影视'
           find . -name "*strings.xml" | xargs sed -i 's#<string name="app_name">.*</string>#<string name="app_name">白龙苑影视</string>#g'
@@ -91,23 +99,15 @@ jobs:
         run: |
           tar -cJf sourceCode-${{ env.commitS }}.tar.xz --exclude=.git --exclude=.github *
 
-      # 【核心优化】直接精准注入原装 build.gradle，规避 Gradle 外部文件的作用域识别失败问题
       - name: Release Apk Sign
         if: ${{ env.commit }}
         working-directory: TVBoxOSC
         run: |
-          # 1. 构造一个符合标准的 Android 签名块（带有完整的内嵌闭包换行）
-          # 我们把它们压缩成单行并利用 sed 塞进 android { 内部的第一行
           SIGN_BLOCK="signingConfigs { myConfig { storeFile file(project.hasProperty('RELEASE_STORE_FILE') ? RELEASE_STORE_FILE : 'TVBoxOSC.jks'); storePassword(project.hasProperty('RELEASE_STORE_PASSWORD') ? RELEASE_STORE_PASSWORD : 'TVBoxOSC'); keyAlias(project.hasProperty('RELEASE_KEY_ALIAS') ? RELEASE_KEY_ALIAS : 'TVBoxOSC'); keyPassword(project.hasProperty('RELEASE_KEY_PASSWORD') ? RELEASE_KEY_PASSWORD : 'TVBoxOSC'); v1SigningEnabled true; v2SigningEnabled true; enableV3Signing = true; enableV4Signing = true; } };"
-          
-          # 2. 将签名块注入到 android { 块的第一行
           sed -i "/android {/a \    $SIGN_BLOCK" app/build.gradle
-          
-          # 3. 让 debug 和 release 编译类型无脑引用这个生成的 myConfig 签名
           sed -i "/debug {/a \            signingConfig signingConfigs.myConfig" app/build.gradle
           sed -i "/release {/a \            signingConfig signingConfigs.myConfig" app/build.gradle
           
-          # 4. 根据 Secrets 变量注入对应的物理密钥数据
           if [ -n "${{ secrets.MY_JKS_FILE }}" ]; then
             echo "检测到专属密钥，正在注入..."
             echo "${{ secrets.MY_JKS_FILE }}" | base64 -d > app/TVBoxOSC.jks
