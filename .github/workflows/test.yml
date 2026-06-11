@@ -91,34 +91,23 @@ jobs:
         run: |
           tar -cJf sourceCode-${{ env.commitS }}.tar.xz --exclude=.git --exclude=.github *
 
-      # 【路径修复】显式将 app_signing.gradle 生成在 app/ 目录下
+      # 【核心优化】直接精准注入原装 build.gradle，规避 Gradle 外部文件的作用域识别失败问题
       - name: Release Apk Sign
         if: ${{ env.commit }}
         working-directory: TVBoxOSC
         run: |
-          # 1. 动态将签名块写入正确的 app/ 文件夹下
-          cat << 'EOF' > app/app_signing.gradle
-          signingConfigs {
-              if (project.hasProperty("RELEASE_STORE_FILE")) {
-                  myConfig {
-                      storeFile file(RELEASE_STORE_FILE)
-                      storePassword RELEASE_STORE_PASSWORD
-                      keyAlias RELEASE_KEY_ALIAS
-                      keyPassword RELEASE_KEY_PASSWORD
-                      v1SigningEnabled true
-                      v2SigningEnabled true
-                      enableV3Signing = true
-                      enableV4Signing = true
-                  }
-              }
-          }
-          EOF
+          # 1. 构造一个符合标准的 Android 签名块（带有完整的内嵌闭包换行）
+          # 我们把它们压缩成单行并利用 sed 塞进 android { 内部的第一行
+          SIGN_BLOCK="signingConfigs { myConfig { storeFile file(project.hasProperty('RELEASE_STORE_FILE') ? RELEASE_STORE_FILE : 'TVBoxOSC.jks'); storePassword(project.hasProperty('RELEASE_STORE_PASSWORD') ? RELEASE_STORE_PASSWORD : 'TVBoxOSC'); keyAlias(project.hasProperty('RELEASE_KEY_ALIAS') ? RELEASE_KEY_ALIAS : 'TVBoxOSC'); keyPassword(project.hasProperty('RELEASE_KEY_PASSWORD') ? RELEASE_KEY_PASSWORD : 'TVBoxOSC'); v1SigningEnabled true; v2SigningEnabled true; enableV3Signing = true; enableV4Signing = true; } };"
           
-          # 2. 引入外部脚本路径调整为当前目录下的 app_signing.gradle
-          sed -i -e "/defaultConfig {/i\apply from: 'app_signing.gradle'" app/build.gradle
-          sed -i -e "/debug {/a\if (project.hasProperty('RELEASE_STORE_FILE')) { signingConfig signingConfigs.myConfig }" app/build.gradle
-          sed -i -e "/release {/a\if (project.hasProperty('RELEASE_STORE_FILE')) { signingConfig signingConfigs.myConfig }" app/build.gradle
+          # 2. 将签名块注入到 android { 块的第一行
+          sed -i "/android {/a \    $SIGN_BLOCK" app/build.gradle
           
+          # 3. 让 debug 和 release 编译类型无脑引用这个生成的 myConfig 签名
+          sed -i "/debug {/a \            signingConfig signingConfigs.myConfig" app/build.gradle
+          sed -i "/release {/a \            signingConfig signingConfigs.myConfig" app/build.gradle
+          
+          # 4. 根据 Secrets 变量注入对应的物理密钥数据
           if [ -n "${{ secrets.MY_JKS_FILE }}" ]; then
             echo "检测到专属密钥，正在注入..."
             echo "${{ secrets.MY_JKS_FILE }}" | base64 -d > app/TVBoxOSC.jks
