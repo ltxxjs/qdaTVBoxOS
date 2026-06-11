@@ -1,0 +1,31 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ] # 当你向 main 分支推送代码时触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 下载你的代码仓库
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 2. 设置 Java 环境
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # 3. 编译 APK (生成 Debug 版本)
+      - name: Build with Gradle
+        run: ./gradlew assembleDebug
+
+      # 4. 上传生成的 APK 作为附件
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
