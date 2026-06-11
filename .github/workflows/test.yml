@@ -74,7 +74,7 @@ jobs:
           
           echo 'crosswalk源，防挂'
           if grep -q 'crosswalk' build.gradle; then
-            sed -i "/crosswalk/a\        maven { url 'https://o0halflife0o.github.io/crosswalk/releases/crosswalk/android/maven2' }" build.gradle
+            sed -i "/crosswalk/a\        maven { url 'https://o0halflife0o.github.io/crosswalk/releases/signed-exchange' }" build.gradle || sed -i "/crosswalk/a\        maven { url 'https://o0halflife0o.github.io/crosswalk/releases/crosswalk/android/maven2' }" build.gradle
           else
             sed -i "/jitpack.io/a\        maven { url 'https://o0halflife0o.github.io/crosswalk/releases/crosswalk/android/maven2' }" build.gradle
           fi
@@ -83,8 +83,16 @@ jobs:
           TARGET_FILE=$(find app/src/main/ -name "HomeActivity.java" | head -n 1)
           if [ -n "$TARGET_FILE" ]; then
             echo "找到目标文件: $TARGET_FILE"
-            # 匹配在 OkHttp 请求上下文中紧跟在 Accept 长请求头后面的那个空字符串 ""，并替换为你的源
-            sed -i 's#\"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,\*/\*;q=0.8,application/signed-exchange;v=b3;q=0.7\", \"\"#\"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,\*/\*;q=0.8,application/signed-exchange;v=b3;q=0.7\", \"https://tvbox.sjk.kdns.fr/\"#g' $TARGET_FILE
+            
+            # 使用更强大的多行/上下文匹配策略：
+            # 找到包含 "text/html" 的行开始，直到随后的代码，把遇到的第一个 "" 替换为你的接口地址
+            # 这可以完美解决源码中因为换行、逗号空格导致的单行正则失效问题
+            sed -i '/text\/html/,/\"\"/s/\"\"/\"https:\/\/tvbox.sjk.kdns.fr\/\"/' $TARGET_FILE
+            
+            # 打印修改后该段代码的上下文，以便在 GitHub Actions 的日志里直接肉眼确认是否替换成功
+            echo "=== 检查修改后的代码片段 ==="
+            grep -C 5 "tvbox.sjk.kdns.fr" $TARGET_FILE || echo "⚠️ 警告：当前匹配可能仍未命中！"
+            echo "============================"
           fi
 
           echo '【魔改】修改桌面图标显示名称为：白龙苑影视'
